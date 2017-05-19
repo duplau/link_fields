@@ -1,0 +1,28 @@
+digraph {
+graph [label="Légende du modèle de données", labelloc=t, fontsize=18];
+	Heuristique_TokenizedMatcher[label="Heuristique TokenizedMatcher",color="orange",penwidth=4.0];
+	Heuristique_CompositeMatcher[label="Heuristique CompositeMatcher",color="yellow",penwidth=4.0];
+	Heuristique_RegexMatcher[label="Heuristique RegexMatcher",color="lightblue",penwidth=4.0];
+	Heuristique_TelephoneMatcher[label="Heuristique TelephoneMatcher",color="black",penwidth=4.0];
+	Heuristique_CustomDateMatcher[label="Heuristique CustomDateMatcher",color="black",penwidth=4.0];
+	Heuristique_SubtypeMatcher[label="Heuristique SubtypeMatcher",color="black",penwidth=4.0];
+	Heuristique_CategoryMatcher[label="Heuristique CategoryMatcher",color="darkgreen",penwidth=4.0];
+	Heuristique_LabelMatcher[label="Heuristique LabelMatcher",color="red",penwidth=4.0];
+	Heuristique_BiblioMatcher[label="Heuristique BiblioMatcher",color="darkorchid",penwidth=4.0];
+	Heuristique_TemplateMatcher[label="Heuristique TemplateMatcher",color="red",penwidth=4.0];
+	subgraph cluster_100 {
+		label="Catégorisation : Type générique";
+		Type_generique->Categorie_2[arrowtail="crow"];
+		Type_generique->Categorie_k[arrowtail="crow"];
+		Type_generique->Categorie_1[arrowtail="crow"];
+	}
+	Type_parent->Sous_type_j[arrowhead="diamond"];
+	Type_parent->Sous_type_1[arrowhead="diamond"];
+	Type_parent->Sous_type_2[arrowhead="diamond"];
+	subgraph cluster_200 {
+		label="Composition : Type composite";
+		Type_composite->Composante_2[arrowhead="tee"];
+		Type_composite->Composante_1[arrowhead="tee"];
+		Type_composite->Composante_i[arrowhead="tee"];
+	}
+}

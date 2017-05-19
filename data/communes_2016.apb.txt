@@ -1,0 +1,14 @@
+G_CN_COD : identifiant APB
+G_CN_COM_NAI : commune de naissance
+G_CN_COM : commune de résidence
+G_CN_COD_POS : code postal de la commune de résidence
+G_CN_RL1_COM : commune de résidence du référent légal n°1
+G_CN_RL1_COD_POS: code postal de la commune de résidence du référent légal n°1
+G_CN_RL2_COM: commune de résidence du référent légal n°2
+G_CN_RL2_COD_POS: code postal de la commune de résidence du référent légal n°2
+
+Enjeu : trouver le code INSEE de chaque postal figurant dans une des 3 colonnes sources.
+
+Problèmes potentiels
+* Communes disparues (pour la commune de naissance)
+* Code postal correspondant à plusieurs codes INSEE ? (l'inverse se produit mais peut-être pas dans ce sens)
