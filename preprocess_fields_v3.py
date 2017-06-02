@@ -1512,6 +1512,58 @@ def generateValueMatchers(lvl = 0):
 		lvl 0 for lightweight matching, 2 for the heaviest variants, 1 as an intermediate level
 		'''
 
+	if lvl >= 0: yield LabelMatcher(F_FIRST, PRENOM_LEXICON, MATCH_MODE_EXACT)
+	if lvl >= 2: yield TokenizedMatcher(F_FIRST, PRENOM_LEXICON, 
+		# maxTokens set to 2 in order to deal with composite first names
+		maxTokens = 2, scorer = partial(tokenScorer, minSrcTokenRatio = 20, minSrcCharRatio = 10)) 
+	if lvl >= 0: yield LabelMatcher(F_LAST, PATRONYME_LEXICON, MATCH_MODE_EXACT)
+	if lvl >= 2: 
+		titleLexicon = fileToSet('titre_appel') | fileToSet('titre_academique') 
+		yield TokenizedMatcher(F_TITLE, titleLexicon, maxTokens = 1)
+	if lvl >= 2: 
+		yield CustomPersonNameMatcher()
+		fullNameValidators = { F_FIRST: lambda v: len(stripped(v)) > 1, F_LAST: lambda v: len(stripped(v)) > 2 }
+		yield CompositeRegexMatcher(F_PERSON, PAT_FIRST_NAME, { F_FIRST: 1}, 
+			ignoreCase = True, validators = fullNameValidators)
+		yield CompositeRegexMatcher(F_PERSON, PAT_FIRST_LAST_NAME, { F_FIRST: 1, F_LAST: 2 }, 
+			ignoreCase = True, validators = fullNameValidators)
+		yield CompositeRegexMatcher(F_PERSON, PAT_LAST_FIRST_NAME, { F_FIRST: 2, F_LAST: 1 }, 
+			ignoreCase = True, validators = fullNameValidators)
+		yield CompositeRegexMatcher(F_PERSON, PAT_FIRSTINITIAL_LAST_NAME, { F_FIRST: 1, F_LAST: 2 }, 
+			ignoreCase = False, validators = fullNameValidators)
+		yield CompositeRegexMatcher(F_PERSON, PAT_LAST_FIRSTINITIAL_NAME, { F_FIRST: 2, F_LAST: 1 }, 
+			ignoreCase = False, validators = fullNameValidators)
+	yield CompositeMatcher(F_PERSON, [F_TITLE, F_FIRST])
+	# Negate person name matches when it's a street name
+	if lvl >= 0: yield RegexMatcher(F_PERSON, "(rue|avenue|av|boulevard|bvd|bd|chemin|route|place|allee) .{0,10} (%s)" % PAT_FIRST_NAME, 
+		g = 1, ignoreCase = True, partial = True, neg = True)
+
+
+	if lvl >= 0: yield RegexMatcher(F_YEAR, "19[0-9]{2}")
+	if lvl >= 0: yield RegexMatcher(F_YEAR, "20[0-9]{2}")
+	if lvl >= 1: yield CustomDateMatcher()
+	yield SubtypeMatcher(F_DATE, [F_YEAR])
+	yield SubtypeMatcher(F_STRUCTURED_TYPE, [F_DATE, F_URL, F_EMAIL, F_PHONE])
+
+	# yield FrenchAddressMatcher()
+	if lvl >= 2: yield CustomAddressMatcher()
+	if lvl >= 0: yield RegexMatcher(F_ZIP, "[0-9]{5}")
+	if lvl >= 0: yield LabelMatcher(F_COUNTRY, fileToSet('country'), MATCH_MODE_EXACT)
+
+	# yield LabelMatcher(F_CITY, COMMUNE_LEXICON, MATCH_MODE_EXACT) # MATCH_MODE_CLOSE too imprecise
+	# yield TokenizedMatcher(F_CITY, COMMUNE_LEXICON, maxTokens = 3)
+	if lvl >= 0: yield RegexMatcher(F_CITY, "(commune|ville) +de+ ([A-Za-z /\-]+)", g = 1, ignoreCase = True, partial = True)
+
+	if lvl >= 2: 
+		yield TokenizedMatcher(F_DPT, fileToSet('departement'), distinctCount = 7)
+		yield TokenizedMatcher(F_REGION, fileToSet('region'), distinctCount = 3)
+		yield TokenizedMatcher(F_STREET, fileToSet('voie.col'), maxTokens = 2)
+	yield CompositeMatcher(F_ADDRESS, [F_STREET, F_ZIP, F_CITY, F_COUNTRY])
+	yield SubtypeMatcher(F_GEO, [F_ADDRESS, F_ZIP, F_CITY, F_DPT, F_REGION, F_COUNTRY])
+
+	return
+
+
 	# Identifiers (typically but not necessarily unique)
 	# yield TemplateMatcher('Identifiant', 90) # TODO distinguish unique vs. non-unique
 

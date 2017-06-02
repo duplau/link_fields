@@ -5,6 +5,21 @@ import unittest, logging, functools, sys, re
 from collections import defaultdict
 from preprocess_fields_v3 import *
 
+class TestCustomAddressMatcher(CustomAddressMatcher):
+	def __init__(self):
+		super(TestCustomAddressMatcher, self).__init__()
+		self.matches = defaultdict(set)
+	def match(self, v):
+		self.matches.clear()
+		super(TestCustomAddressMatcher, self).match(Cell(v, self.t))
+	def registerFullMatch(self, c, t, ms, hit = None): 
+		m = hit if hit else c.value
+		print('Full match on "{}": "{}" ({})'.format(c.value, m, ms))
+		self.matches[t].add(stripped(m))
+	def registerPartialMatch(self, c, t, ms, hit, span): 
+		print('Partial match on "{}": "{}" [{}, {}] ({})'.format(c.value, hit, span[0], span[1], ms))
+		self.matches[t].add(stripped(hit))
+
 class TestCustomDateMatcher(CustomDateMatcher):
 	def __init__(self):
 		super(TestCustomDateMatcher, self).__init__()
@@ -59,36 +74,6 @@ class TestTokenizedMatcher(TokenizedMatcher):
 	def match(self, v):
 		self.matches.clear()
 		super(TestTokenizedMatcher, self).match(Cell(v, self.t))
-	def registerFullMatch(self, c, t, ms, hit = None): 
-		m = hit if hit else c.value
-		print('Full match on "{}": "{}" ({})'.format(c.value, m, ms))
-		self.matches[t].add(stripped(m))
-	def registerPartialMatch(self, c, t, ms, hit, span): 
-		print('Partial match on "{}": "{}" [{}, {}] ({})'.format(c.value, hit, span[0], span[1], ms))
-		self.matches[t].add(stripped(hit))
-
-class TestCustomAddressMatcher(CustomAddressMatcher):
-	def __init__(self):
-		super(TestCustomAddressMatcher, self).__init__()
-		self.matches = defaultdict(set)
-	def match(self, v):
-		self.matches.clear()
-		super(TestCustomAddressMatcher, self).match(Cell(v, self.t))
-	def registerFullMatch(self, c, t, ms, hit = None): 
-		m = hit if hit else c.value
-		print('Full match on "{}": "{}" ({})'.format(c.value, m, ms))
-		self.matches[t].add(stripped(m))
-	def registerPartialMatch(self, c, t, ms, hit, span): 
-		print('Partial match on "{}": "{}" [{}, {}] ({})'.format(c.value, hit, span[0], span[1], ms))
-		self.matches[t].add(stripped(hit))
-
-class TestFrenchAddressMatcher(FrenchAddressMatcher):
-	def __init__(self):
-		super(TestFrenchAddressMatcher, self).__init__()
-		self.matches = defaultdict(set)
-	def match(self, v):
-		self.matches.clear()
-		super(TestFrenchAddressMatcher, self).match(Cell(v, self.t))
 	def registerFullMatch(self, c, t, ms, hit = None): 
 		m = hit if hit else c.value
 		print('Full match on "{}": "{}" ({})'.format(c.value, m, ms))
@@ -237,42 +222,31 @@ class ParseValuesTestCase(unittest.TestCase):
 			m = re.search(EMAIL_PATTERN + '$', v, 0)
 			self.assertTrue(m, 'Could not match email %s' % v)
 
-	def testAddressMatchers(self):
-		matcherLibparse = TestCustomAddressMatcher()
-		matcherBAN = TestFrenchAddressMatcher()
-		# addrList = fileToList('test_data/addresses.to_normalize')
-		addrLists = { 
-			'fr' : ([matcherLibparse, matcherBAN], [
-					'1 avenue Bourgelat, 69280 Marcy l Etoile',
-					'149 rue de Bercy, F-75595 Paris',
-					'UFR STAPS 118 route de Narbonne 31062 Toulouse Cedex',
-					'P. Grousset Allée P. Grousset Pôle Campus Universitaire - Le Bailly Bâtiment UFR des Sciences du Sports AMIENS CEDEX 1 80025',
-					'Inria Bordeaux',
-					'Site Schuman - 3 avenue Robert Schuman 13628 Aix-en-Provence Cedex 01Site Canebière - 110-114 La Canebière 13001 MarseilleSite d’Arles - Espace Van Gogh 13200 Arles',
-					'Messimy sur Saône',
-					'75019;PARIS',
-					'18 rue des Pins, 11570 Cazilhac, France',
-					'Campus de Beaulieu 35042 Rennes cedex'
-			]),
-			'row': ([matcherLibparse], [
-					'3Department of Atmospheric and Oceanic Sciences, University of California, Los Angeles, CA 90095-1565, USA'
-			])
-		}
-		for (matchers, addrList) in addrLists.values():
-			for addr in addrList:
-				for matcher in matchers:
-					ms = matcher.match(addr)
-					# self.assertTrue(ms is not None, '{}: could not parse address: {}'.format(matcher, addr))
-					print('{}: parse of "{}"'.format(matcher, addr))
-					if ms is None:
-						print('Failed!')
-					else: 
-						for (k, v) in ms.iteritems(): print(k.rjust(20), v.ljust(40))
+	def testCustomAddressMatcher(self):
+		matcher = TestCustomAddressMatcher()
+		addrList = fileToList('addresses.to_normalize.01', path='local_test_data')
+		# addrList = [#'18 rue des Pins, 11570 Cazilhac, France',
+		# 			'3Department of Atmospheric and Oceanic Sciences, University of California, Los Angeles, CA 90095-1565, USA',
+		# 			'1 avenue Bourgelat, 69280 Marcy l Etoile',
+		# 			'149 rue de Bercy, F-75595 Paris',
+		# 			'UFR STAPS 118 route de Narbonne 31062 Toulouse Cedex',
+		# 			'P. Grousset Allée P. Grousset Pôle Campus Universitaire - Le Bailly Bâtiment UFR des Sciences du Sports AMIENS CEDEX 1 80025',
+		# 			'Inria Bordeaux',
+		# 			'Site Schuman - 3 avenue Robert Schuman 13628 Aix-en-Provence Cedex 01Site Canebière - 110-114 La Canebière 13001 MarseilleSite d’Arles - Espace Van Gogh 13200 Arles',
+		# 			'Messimy sur Saône',
+		# 			'75019;PARIS',
+		# 			'Campus de Beaulieu 35042 Rennes cedex']
+		for addr in addrList:
+			matcher.match(addr)
+			self.assertTrue(F_ADDRESS in matcher.matches, '{} missed a match of type address for input "{}"'.format(matcher, addr))
+			data = [addr]
+			data.extend(matcher.matches[F_ADDRESS])
+			print('|'.join(data))
 
 if __name__ == '__main__':
 	logging.basicConfig(filename = 'log/test_preprocess_fields_v3.log', level = logging.DEBUG)
 	# unittest.main()
 	suite = unittest.TestSuite()
-	suite.addTest(ParseValuesTestCase("testAddressMatchers"))
+	suite.addTest(ParseValuesTestCase("testCustomAddressMatcher"))
 	runner = unittest.TextTestRunner()
 	runner.run(suite)
