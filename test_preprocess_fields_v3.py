@@ -224,7 +224,7 @@ class ParseValuesTestCase(unittest.TestCase):
 
 	def testCustomAddressMatcher(self):
 		matcher = TestCustomAddressMatcher()
-		addrList = fileToList('addresses.to_normalize.01', path='local_test_data')
+		addrList = fileToList('addresses.to_normalize.01', path='test_data')
 		# addrList = [#'18 rue des Pins, 11570 Cazilhac, France',
 		# 			'3Department of Atmospheric and Oceanic Sciences, University of California, Los Angeles, CA 90095-1565, USA',
 		# 			'1 avenue Bourgelat, 69280 Marcy l Etoile',
@@ -236,12 +236,18 @@ class ParseValuesTestCase(unittest.TestCase):
 		# 			'Messimy sur Saône',
 		# 			'75019;PARIS',
 		# 			'Campus de Beaulieu 35042 Rennes cedex']
+		data = []
 		for addr in addrList:
 			matcher.match(addr)
-			self.assertTrue(F_ADDRESS in matcher.matches, '{} missed a match of type address for input "{}"'.format(matcher, addr))
-			data = [addr]
-			data.extend(matcher.matches[F_ADDRESS])
+			# self.assertTrue(F_ADDRESS in matcher.matches, '{} missed a match of type address for input "{}"'.format(matcher, addr))
+			if F_ADDRESS not in matcher.matches: print('{} missed a match of type address for input "{}"'.format(matcher, addr))
+			print('COUCOU', matcher.matches[F_ADDRESS])
+			datum = [addr]
+			datum.extend(list(matcher.matches[F_ADDRESS]))
 			print('|'.join(data))
+		# 	data.append(datum)
+		# for data in datum:
+		# 	print('|'.join(data))
 
 if __name__ == '__main__':
 	logging.basicConfig(filename = 'log/test_preprocess_fields_v3.log', level = logging.DEBUG)
