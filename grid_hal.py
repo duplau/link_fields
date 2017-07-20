@@ -240,7 +240,7 @@ if __name__ == '__main__':
 		# srcLabel['sig'] = sorted(srcLabel['tokens'], key = lambda t: tokenCount[t], reverse = True)[:5]
 		candidateGrids = set()
 		for token in sorted(tokens, key = lambda t: tokenCount[t], reverse = True)[:5]:
-			if len(candidateGrids) > 32 or len(gridByToken[token]): break
+			if len(candidateGrids) > 32 or len(gridByToken[token]) > 32: break
 			candidateGrids |= gridByToken[token]
 		logging.debug('Source label "{}": found {} candidates'.format(srcName, len(candidateGrids)))
 		if len(candidateGrids) < 1: 
