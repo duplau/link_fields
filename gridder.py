@@ -1,4 +1,4 @@
-import csv, unicodedata, difflib, functools, logging, re, os
+import csv, unicodedata, difflib, functools, logging, re, os, sys
 from collections import defaultdict, Counter
 from fuzzywuzzy import fuzz
 import enchant
@@ -9,7 +9,6 @@ RESOURCE_PATH = 'resource'
 
 # $ egrep -v -i "Ltd|Consultant|Limited|Corp|Inc" data/grid.csv > data/grid_public.csv
 
-
 def acronymizeTokens(tokens, minAcroSize = 3, maxAcroSize = 7):
 	for s in range(max(minAcroSize, len(tokens)), min(maxAcroSize, len(tokens)) + 1):
 		tl = tokens[:s]
@@ -18,6 +17,22 @@ def acronymizeTokens(tokens, minAcroSize = 3, maxAcroSize = 7):
 def acronymizePhrase(phrase, keepAcronyms = True): 
 	tokens = validateTokens(phrase, keepAcronyms)
 	return acronymizeTokens(tokens)
+
+
+ACRO_PATTERNS = ['[{}]', '({})']
+def findValidAcronyms(phrase):
+	for acro in acronymizePhrase(phrase, True):
+		if any([phrase.find(ap.format(acro)) >=0 for ap in ACRO_PATTERNS]): 
+			yield acro
+
+def extractAcronyms(phrase):
+	for acro in acronymizePhrase(phrase, True):
+		for ap in ACRO_PATTERNS:
+			substring = ap.format(acro)
+			i = phrase.find(substring)
+			if i >=0:
+				yield acro
+				yield phrase[:i] + phrase[i + len(substring):]
 
 def isStopWord(word): return word in STOP_WORDS
 
@@ -161,6 +176,16 @@ NON_DISCRIMINATING_TOKENS = map(justCase, [
 	'Uniwersytet', 'Centrum', 'Akademia'
 ])
 
+TRANSLATIONS = {
+	'University': ['Université', 'Universidad', 'Universität'],
+	'Hospital': ['Hôpital'],
+	'Center': ['Centre', 'Centrum', 'Zentrum'],
+	'Agency': ['Agence', 'Agencia'],
+	'City': ['Commune', 'Comune'],
+	'Clinic': ['Clinique', 'Klinikum'],
+	'Academy': ['Académie', 'Akademia'],
+	'Institute': ['Institut', 'Instituto']
+}
 
 def makeKey(country, city): 
 	return caseToken(country) if country else ''
@@ -239,7 +264,14 @@ def checkCandidate(src, ref):
 				logging.debug('Rejected for PROPER_NOUN_SET : {} / {}'.format(a, b))
 				return 0
 
-	# s = absCharRatio + 2 * partialCharRatio + 4 * tokenSortRatio + 8 * tokenSetRatio / 15
-	# return s if s > 80 else 0
 	s = absCharRatio * partialCharRatio * tokenSortRatio**2 * tokenSetRatio**3
-	return s if s > 50 * 100**6 else 0
+	return s if s > 60 * 100**6 else 0
+
+if __name__ == '__main__':
+	# parser = argparse.ArgumentParser()
+	# parser.add_argument('strings', metavar='s', type=str, nargs='+', help='strings to compare')
+	# args = parser.parse_args()
+	# print(args)
+	# phrases = args.accumulate(args.integers)
+	phrases = sys.argv[1:3]
+	print('Score:', checkCandidate(phrases[0], phrases[1]) / 100**6)

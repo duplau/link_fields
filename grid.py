@@ -13,6 +13,21 @@ def acronymizePhrase(phrase, keepAcronyms = True):
 	tokens = validateTokens(phrase, keepAcronyms)
 	return acronymizeTokens(tokens)
 
+ACRO_PATTERNS = ['[{}]', '({})']
+def findValidAcronyms(phrase):
+	for acro in acronymizePhrase(phrase, True):
+		if any([phrase.find(ap.format(acro)) >=0 for ap in ACRO_PATTERNS]): 
+			yield acro
+
+def extractAcronyms(phrase):
+	for acro in acronymizePhrase(phrase, True):
+		for ap in ACRO_PATTERNS:
+			substring = ap.format(acro)
+			i = phrase.find(substring)
+			if i >=0:
+				yield acro
+				yield phrase[:i] + phrase[i + len(substring):]
+
 def isStopWord(word): return word in STOP_WORDS
 
 def isValidPhrase(tokens): return len(tokens) > 0 and not all(len(t) < 2 and t.isdigit() for t in tokens)
@@ -151,7 +166,6 @@ NON_DISCRIMINATING_TOKENS = map(splitAndCase, [
 	'Uniwersytet', 'Centrum', 'Akademia'
 ])
 
-
 def makeKey(country, city): 
 	return caseToken(country) if country else ''
 
@@ -210,7 +224,6 @@ def checkCandidate(src, ref):
 		return 0
 	s = max(absCharRatio, partialCharRatio, tokenSortRatio, tokenSetRatio)
 	return s if s > 80 else 0
-
 
 CONFIGS = {
 	
