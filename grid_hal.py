@@ -2,7 +2,7 @@ import logging
 from gridder import *
 
 def bestCandidateScore(src, ref, variants):
-	return max([checkCandidate(a, b) for a in variants[src] for b in variants[ref]])
+	return max([scoreStrings(a, b) for a in variants[src] for b in variants[ref]])
 
 if __name__ == '__main__':
 	logging.basicConfig(filename = 'log/grid_hal.log', level = logging.DEBUG)
@@ -45,7 +45,7 @@ if __name__ == '__main__':
 		logging.debug('Source label "{}": found {} candidates'.format(srcName, len(candidateGrids)))
 		if len(candidateGrids) < 1: 
 			continue
-		candidate = sorted([(grid, checkCandidate(srcName, labelByGrid[grid])) for grid in candidateGrids], key = lambda p: p[1], reverse = True)[0]
+		candidate = sorted([(grid, scoreStrings(srcName, labelByGrid[grid])) for grid in candidateGrids], key = lambda p: p[1], reverse = True)[0]
 		grid = candidate[0]
 		score = candidate[1]
 		logging.debug('Best candidate : "{}" ({})'.format(labelByGrid[grid], score))

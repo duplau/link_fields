@@ -18,7 +18,6 @@ def acronymizePhrase(phrase, keepAcronyms = True):
 	tokens = validateTokens(phrase, keepAcronyms)
 	return acronymizeTokens(tokens)
 
-
 ACRO_PATTERNS = ['[{}]', '({})']
 def findValidAcronyms(phrase):
 	for acro in acronymizePhrase(phrase, True):
@@ -220,10 +219,9 @@ def normalize(t):
 def filterProperNouns(it):
 	return filter(lambda t: len(t) > 2 and t not in FRENCH_WORDS  and t not in NON_DISCRIMINATING_TOKENS and not any([d.check(t) for d in DICTS]), it)
 
-def checkCandidate(src, ref):
+def scoreStrings(src, ref):
 	a = stripped(src)
 	b = stripped(ref)
-
 	a1 = acronymizePhrase(a)
 	b1 = acronymizePhrase(b)
 	if a1 == b.upper() or a.upper() == b1:
@@ -237,7 +235,6 @@ def checkCandidate(src, ref):
 	if partialCharRatio < 30: 
 		logging.debug('Rejected for PARTIAL : {} / {}'.format(a, b))
 		return 0
-
 	aTokens = validateTokens(src)
 	bTokens = validateTokens(ref)
 	a2 = ' '.join(filter(lambda t: t not in NON_DISCRIMINATING_TOKENS, validateTokens(src)))
@@ -250,7 +247,6 @@ def checkCandidate(src, ref):
 	if tokenSetRatio < 50:
 		logging.debug('Rejected for TOKEN_SET : {} / {}'.format(a, b))
 		return 0
-	
 	if REQUIRES_SHARED_PROPER_NOUN:
 		aProper = ' '.join(filterProperNouns(aTokens))
 		bProper = ' '.join(filterProperNouns(bTokens))
@@ -263,9 +259,18 @@ def checkCandidate(src, ref):
 			if properNounSetRatio < 20:
 				logging.debug('Rejected for PROPER_NOUN_SET : {} / {}'.format(a, b))
 				return 0
-
 	s = absCharRatio * partialCharRatio * tokenSortRatio**2 * tokenSetRatio**3
 	return s if s > 60 * 100**6 else 0
+
+def scoreCandidates (src, ref):
+	score_str = max([scoreStrings(a, b) for a in src['variants'] for b in ref['variants']]) if 'variants' in src and 'variants' in ref else 0
+	score_country = 50
+	if 'country' in src and 'country' in ref:
+		score_country = 100 if fuzz.ratio(src['country'], ref['country']) > 80 else 0
+	score_city = 50
+	if 'city' in src and 'city' in ref:
+		score_city = 100 if fuzz.ratio(src['city'], ref['city']) > 80 else 0
+
 
 if __name__ == '__main__':
 	# parser = argparse.ArgumentParser()
@@ -274,4 +279,4 @@ if __name__ == '__main__':
 	# print(args)
 	# phrases = args.accumulate(args.integers)
 	phrases = sys.argv[1:3]
-	print('Score:', checkCandidate(phrases[0], phrases[1]) / 100**6)
+	print('Score:', scoreStrings(phrases[0], phrases[1]) / 100**6)
