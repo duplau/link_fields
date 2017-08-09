@@ -1,54 +1,57 @@
-import logging
+import logging, optparse
 from gridder import *
 
-def bestCandidateScore(src, ref, variants):
-	return max([scoreStrings(a, b) for a in variants[src] for b in variants[ref]])
+EXCLUDE_FR = True
 
 if __name__ == '__main__':
-	logging.basicConfig(filename = 'log/grid_hal.log', level = logging.DEBUG)
-	countryCodes = countryToCodeMap()
-	srcLabels = dict()
-	docIdByLabel = dict()
-	tokenCount = Counter()
-	variants = defaultdict(set)
+	logging.basicConfig(filename = 'log/grid_hal.log', level = logging.INFO)
+	parser = optparse.OptionParser()
+	parser.add_option("-x", "--exclude_fr", dest = "exclude_FR",
+						help = "exclude French GRID entities")
+	(options, args) = parser.parse_args()
+	exclude_FR = options.exclude_FR
+	src_items_by_label = dict()
+	ref_item_by_grid = dict()
+	grids_by_token = defaultdict(set)
+	token_count = Counter()
 	with open('data/hal.csv') as srcFile:
-		srcReader =  csv.DictReader(srcFile, delimiter = '\t', quotechar = '"')
-		for srcRow in srcReader:
+		src_reader =  csv.DictReader(srcFile, delimiter = '\t', quotechar = '"')
+		for srcRow in src_reader:
 			label = srcRow['label_s']
+			doc_id = srcRow['docid']
 			tokens = validateTokens(label)
-			for token in tokens: tokenCount[token] += 1
-			srcLabels[srcRow['label_s']] = tokens
-			docIdByLabel[srcRow['label_s']] = srcRow['docid']
-	gridByToken = defaultdict(set)
-	labelByGrid = dict()
+			for token in tokens: token_count[token] += 1
+			src_items_by_label[label] = dict( origin = SOURCE, label = label, doc_id = doc_id, tokens = tokens, variants = set([label]), acros = set() )
 	with open('data/grid.csv') as refFile:
-		refReader =  csv.DictReader(refFile, delimiter = ',', quotechar = '"')
-		for refRow in refReader:
+		ref_reader =  csv.DictReader(refFile, delimiter = ',', quotechar = '"')
+		for refRow in ref_reader:
 			label = refRow['Name']
 			tokens = validateTokens(label)
 			grid = refRow['ID']
-			labelByGrid[grid] = label
-			for token in tokens: gridByToken[token].add(grid)
-			if len(labelByGrid) % 1000 == 0: logging.info('Pre-processed {} entries'.format(len(labelByGrid)))
-	for main in set(labelByGrid.values()) | set(srcLabels.keys()):
-		variants[main].add(main)
-		for variant in extractAcronyms(main):
-			variants[main].add(variant)
+			if exclude_FR and refRow['Country'] == 'France': continue
+			ref_item_by_grid[grid] = dict( origin = REFERENCE, label = label, grid = grid, variants = set([label]), acros = set() )
+			for token in tokens: 
+				grids_by_token[token].add(grid)
+			if len(ref_item_by_grid) % 1000 == 0: logging.info('Pre-processed {} reference entries'.format(len(ref_item_by_grid)))
+	for item in src_items_by_label.values():
+		enrich_item_with_variants(item)
+	for item in ref_item_by_grid.values():
+		enrich_item_with_variants(item)
 	print('\t'.join(['HAL Label', 'GRID Label', 'GRID']))
-	for (srcName, tokens) in srcLabels.items():
-		# srcLabel['sig'] = sorted(srcLabel['tokens'], key = lambda t: tokenCount[t], reverse = True)[:5]
-		candidateGrids = set()
-		for token in sorted(tokens, key = lambda t: tokenCount[t], reverse = True)[:8]:
-			newGrids = candidateGrids | gridByToken[token]
+	for (srcLabel, src_item) in src_items_by_label.items():
+		candidate_grids = set()
+		for token in sorted(src_item['tokens'], key = lambda t: token_count[t], reverse = True)[:8]:
+			newGrids = candidate_grids | grids_by_token[token]
 			if len(newGrids) > 32: break
-			candidateGrids = newGrids
-		logging.debug('Source label "{}": found {} candidates'.format(srcName, len(candidateGrids)))
-		if len(candidateGrids) < 1: 
+			candidate_grids = newGrids
+		logging.info('Source label "{}": found {} candidates'.format(srcLabel, len(candidate_grids)))
+		if len(candidate_grids) < 1: 
 			continue
-		candidate = sorted([(grid, scoreStrings(srcName, labelByGrid[grid])) for grid in candidateGrids], key = lambda p: p[1], reverse = True)[0]
+		candidate = sorted([(grid, score_items(src_item, ref_item_by_grid[grid])) for grid in candidate_grids], key = lambda p: p[1], reverse = True)[0]
 		grid = candidate[0]
 		score = candidate[1]
-		logging.debug('Best candidate : "{}" ({})'.format(labelByGrid[grid], score))
+		ref_label = ref_item_by_grid[grid]['label']
+		logging.info('Best candidate : "{}" ({})'.format(ref_label, score))
 		if candidate[1] > 0: 
-			docid = docIdByLabel[srcName]
-			print('\t'.join([docid, srcName, labelByGrid[grid], grid]))
+			docid = src_item['doc_id']
+			print('\t'.join([docid, srcLabel, ref_label, grid]))

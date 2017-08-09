@@ -3,6 +3,9 @@ from collections import defaultdict, Counter
 from fuzzywuzzy import fuzz
 import enchant
 
+SOURCE = 1
+REFERENCE = 2
+
 REQUIRES_SHARED_PROPER_NOUN = True
 DICTS = [ enchant.Dict("en_US") ]
 RESOURCE_PATH = 'resource'
@@ -16,7 +19,7 @@ def acronymizeTokens(tokens, minAcroSize = 3, maxAcroSize = 7):
 
 def acronymizePhrase(phrase, keepAcronyms = True): 
 	tokens = validateTokens(phrase, keepAcronyms)
-	return acronymizeTokens(tokens)
+	return list(acronymizeTokens(tokens))
 
 ACRO_PATTERNS = ['[{}]', '({})']
 def findValidAcronyms(phrase):
@@ -24,14 +27,24 @@ def findValidAcronyms(phrase):
 		if any([phrase.find(ap.format(acro)) >=0 for ap in ACRO_PATTERNS]): 
 			yield acro
 
-def extractAcronyms(phrase):
+def enrich_item_with_variants(item):
+	for (acro, variant) in extractAcronymsByColocation(item['label']):
+		item['variants'].add(variant)
+		item['acros'].add(acro)
+
+def extractAcronymsByConstruction(phrase):
 	for acro in acronymizePhrase(phrase, True):
 		for ap in ACRO_PATTERNS:
 			substring = ap.format(acro)
 			i = phrase.find(substring)
 			if i >=0:
-				yield acro
-				yield phrase[:i] + phrase[i + len(substring):]
+				yield (acro, phrase[:i] + phrase[i + len(substring):])
+
+def extractAcronymsByColocation(phrase):
+	ms = re.findall('\b\[([\s0-9A-Z/]+)\]\b', phrase)
+	if not ms: return
+	for m in ms:
+		yield (m.group(1), phrase[:m.start()])
 
 def isStopWord(word): return word in STOP_WORDS
 
@@ -68,7 +81,16 @@ def lowerOrNot(token, keepAcronyms, keepInitialized = False):
 			return toKeep + lowerOrNot(token[len(toKeep):], keepAcronyms, keepInitialized)
 	return token.lower()
 
-def toASCII(phrase): return unicodedata.normalize('NFKD', phrase)
+def toASCII(string):
+	string = re.sub(u"[àáâãäå]", 'a', string)
+	string = re.sub(u"[èéêë]", 'e', string)
+	string = re.sub(u"[ìíîï]", 'i', string)
+	string = re.sub(u"[òóôõö]", 'o', string)
+	string = re.sub(u"[ùúûü]", 'u', string)
+	string = re.sub(u"[ýÿ]", 'y', string)
+	return string
+
+# def toASCII(phrase): return unicodedata.normalize('NFKD', phrase).encode('ascii')
 
 def caseToken(t, keepAcronyms = False): return toASCII(lowerOrNot(t.strip(), keepAcronyms))
 
@@ -160,7 +182,7 @@ STOP_WORDS = set([
 	"mais", "et", "ou", "donc", "or", "ni", "car",
 ])
 
-NON_DISCRIMINATING_TOKENS = map(justCase, [
+NON_DISCRIMINATING_TOKENS = list([justCase(t) for t in [
 	# FR
 	'Société', 'Université', 'Unité', 'Pôle',
 	# EN
@@ -173,17 +195,29 @@ NON_DISCRIMINATING_TOKENS = map(justCase, [
 	'Universidad', 'Agencia', 'Servicio', 'Conselleria', 'Museo', 'Fundacion',
 	# PL
 	'Uniwersytet', 'Centrum', 'Akademia'
-])
+]])
 
 TRANSLATIONS = {
-	'University': ['Université', 'Universidad', 'Universität'],
+	'University': ['Université', 'Universidad', 'Universität', 'Universitat'],
 	'Hospital': ['Hôpital'],
-	'Center': ['Centre', 'Centrum', 'Zentrum'],
 	'Agency': ['Agence', 'Agencia'],
 	'City': ['Commune', 'Comune'],
 	'Clinic': ['Clinique', 'Klinikum'],
 	'Academy': ['Académie', 'Akademia'],
-	'Institute': ['Institut', 'Instituto']
+	'Institute': ['Institut', 'Instituto', 'Istituto', 'Instytut'],
+	'Center': ['Centre', 'Centrum', 'Zentrum'],
+	'Association': ['Asociacion'],
+	'Society': ['Société', 'Societa', 'Gesellschaft'],
+	'Development': ['Développement'],
+	'Consulting': ['Conseil'],
+	'Foundation': ['Fundacion', 'Fondation'],
+	'European': ['Européen'],
+	'Technology': ['Technologie'],
+	'Systems': ['Systèmes'],
+	'Industrial': ['Industriel', 'Industrie', 'Industrial'],
+	'Research': ['Recherche'],
+	'Energy': ['Energie', 'Energia', 'Power'],
+	'Organization': ['Ograniczona']
 }
 
 def makeKey(country, city): 
@@ -220,13 +254,15 @@ def filterProperNouns(it):
 	return filter(lambda t: len(t) > 2 and t not in FRENCH_WORDS  and t not in NON_DISCRIMINATING_TOKENS and not any([d.check(t) for d in DICTS]), it)
 
 def scoreStrings(src, ref):
-	a = stripped(src)
-	b = stripped(ref)
-	a1 = acronymizePhrase(a)
-	b1 = acronymizePhrase(b)
-	if a1 == b.upper() or a.upper() == b1:
+	a0 = stripped(src)
+	b0 = stripped(ref)
+	a1 = acronymizePhrase(a0)
+	b1 = acronymizePhrase(b0)
+	if len(a1) > 0 and len(b1) > 0 and (a1 == b0.upper() or a0.upper() == b1):
 		logging.debug('Accepted for ACRO : {} / {}'.format(a, b))
 		return 100
+	a = justCase(src)
+	b = justCase(ref)
 	absCharRatio = fuzz.ratio(a, b)
 	if absCharRatio < 20: 
 		logging.debug('Rejected for ABS : {} / {}'.format(a, b))
@@ -259,24 +295,21 @@ def scoreStrings(src, ref):
 			if properNounSetRatio < 20:
 				logging.debug('Rejected for PROPER_NOUN_SET : {} / {}'.format(a, b))
 				return 0
-	s = absCharRatio * partialCharRatio * tokenSortRatio**2 * tokenSetRatio**3
-	return s if s > 60 * 100**6 else 0
+	s = (absCharRatio * partialCharRatio * tokenSortRatio**2 * tokenSetRatio**3) / 100**6
+	return s if s > 60 else 0
 
-def scoreCandidates (src, ref):
+def score_items(src, ref):
 	score_str = max([scoreStrings(a, b) for a in src['variants'] for b in ref['variants']]) if 'variants' in src and 'variants' in ref else 0
+	score_acro = max([fuzz.ratio(a, b) for a in src['acro'] for b in ref['acro']]) if 'acro' in src and 'acro' in ref else 0
 	score_country = 50
 	if 'country' in src and 'country' in ref:
 		score_country = 100 if fuzz.ratio(src['country'], ref['country']) > 80 else 0
 	score_city = 50
 	if 'city' in src and 'city' in ref:
 		score_city = 100 if fuzz.ratio(src['city'], ref['city']) > 80 else 0
-
+	return (max(score_str, score_acro) * score_country * score_city) / 100**2
 
 if __name__ == '__main__':
-	# parser = argparse.ArgumentParser()
-	# parser.add_argument('strings', metavar='s', type=str, nargs='+', help='strings to compare')
-	# args = parser.parse_args()
-	# print(args)
-	# phrases = args.accumulate(args.integers)
+	logging.basicConfig(filename = 'log/gridder.log', level = logging.DEBUG)
 	phrases = sys.argv[1:3]
-	print('Score:', scoreStrings(phrases[0], phrases[1]) / 100**6)
+	print('Score:', scoreStrings(phrases[0], phrases[1]))
