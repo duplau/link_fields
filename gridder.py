@@ -99,7 +99,7 @@ def isStopWord(word): return word in STOP_WORDS
 
 def isValidPhrase(tokens): return len(tokens) > 0 and not all(len(t) < 2 and t.isdigit() for t in tokens)
 
-def stripped(s): return s.strip(" -_.,'?!").strip('"').strip()
+def stripped(s): return s.strip(" -_.,'?!*+").strip('"').strip()
 
 def isValidToken(token, minLength = 2):
 	token = stripped(token)

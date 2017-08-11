@@ -3,7 +3,7 @@ from gridder import *
 
 OUTPUT_FIELDS = ['doc_id', 'label', 'grid', 'parent_grid', 'grid_label', 'grid_reason', 'city', 'country']
 EXCLUDE_FR = False
-
+ADD_VARIANT_WITHOUT_COUNTRY = False
 ROTTEN_DOC_IDS = [ 355912 ]
 
 def print_as_CSV(fields, row = None):
@@ -57,7 +57,8 @@ if __name__ == '__main__':
 				src_item['variants'].add(' '.join([parent_label, label]))
 			if len(countries) > 0: 
 				src_item['country'] = countries[0]
-				src_item['variants'].add(' '.join(country_variant))
+				if ADD_VARIANT_WITHOUT_COUNTRY:
+					src_item['variants'].add(' '.join(country_variant))
 			acronym = srcRow['acronym_s']
 			if len(acronym) > 0:
 				src_item['acronym'] = acronym
