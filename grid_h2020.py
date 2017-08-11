@@ -64,6 +64,7 @@ def pick_hungarian_candidate(src_items, ref_item_by_grid, grid_counts, candidate
 if __name__ == '__main__':
 	logging.basicConfig(filename = 'log/grid_h2020.log', level = logging.INFO)
 	country_codes = countryToCodeMap()
+
 	src_blocks = defaultdict(list)
 	token_count = Counter()
 	src_labels = set()
@@ -79,6 +80,7 @@ if __name__ == '__main__':
 			src_item = dict( origin = SOURCE, label = src_label, tokens = tokens, variants = set([src_label]), acros = set() )
 			enrich_item_with_variants(src_item)
 			src_blocks[key].append(src_item)
+
 	ref_blocks = defaultdict(list)
 	ref_item_by_grid = dict()
 	grids_by_token = defaultdict(set)
@@ -98,6 +100,7 @@ if __name__ == '__main__':
 			ref_item_by_grid[grid] = refItem
 			enrich_item_with_variants(refItem)
 			ref_blocks[key].append(refItem)
+
 	print('\t'.join(['Location', 'H2020 Label', 'GRID Label', 'GRID']))
 	for (key, src_items) in src_blocks.items():
 		refs = None
