@@ -4,6 +4,7 @@ from gridder import *
 OUTPUT_FIELDS = ['doc_id', 'label', 'grid', 'parent_grid', 'grid_label', 'grid_reason', 'city', 'country']
 EXCLUDE_FR = False
 ADD_VARIANT_WITHOUT_COUNTRY = False
+FORBID_DUPE_ACRONYMS = False
 ROTTEN_DOC_IDS = [ 355912 ]
 
 def print_as_CSV(fields, row = None):
@@ -35,6 +36,7 @@ if __name__ == '__main__':
 
 	src_items_by_label = dict()
 	token_count = Counter()
+	acronym_count = Counter()
 	with open('data/hal.csv') as srcFile:
 		src_reader =  csv.DictReader(srcFile, delimiter = '\t', quotechar = '"')
 		for srcRow in src_reader:
@@ -62,6 +64,7 @@ if __name__ == '__main__':
 			acronym = srcRow['acronym_s']
 			if len(acronym) > 0:
 				src_item['acronym'] = acronym
+				acronym_count[acronym] += 1
 			enrich_item_with_variants(src_item)
 			src_items_by_label[label] = src_item
 
@@ -107,6 +110,7 @@ if __name__ == '__main__':
 			grid = acronym_row['grid_id']
 			if grid not in ref_item_by_grid: continue
 			ref_item_by_grid[grid]['acronym'] = acronym_row['acronym']
+			acronym_count[acronym_row['acronym']] += 1
 	with open('data/grid_links.csv') as links_file:
 		links_reader = csv.DictReader(links_file, delimiter = ',', quotechar = '"')
 		for link_row in links_reader:
@@ -150,12 +154,18 @@ if __name__ == '__main__':
 
 	logging.warning('==> now {} gridded entities'.format(gridded_count(src_items_by_label)))
 
+	if FORBID_DUPE_ACRONYMS:
+		for src_item in src_items_by_label.values():
+			if 'acronym' in src_item and acronym_count[src_item['acronym']] > 1: del src_item['acronym']
+		for ref_item in ref_item_by_grid.values():
+			if 'acronym' in ref_item and acronym_count[ref_item['acronym']] > 1: del ref_item['acronym']
+
 	logging.warning('Matching unmatched src labels...')
 	attached_parent_grid_count = 0
 	src_items_index = dict()
 	for (src_label, src_item) in src_items_by_label.items():
 		src_items_index[src_label] = src_item
-		if 'acronym' in src_item: src_items_index[src_item['acronym']] = src_item
+		if 'acronym' in src_item and (FORBID_DUPE_ACRONYMS or acronym_count[src_item['acronym']] < 2): src_items_index[src_item['acronym']] = src_item
 	for src_label in unmatched_src_labels:
 		src_item = src_items_by_label[src_label]
 		if 'parent_label' not in src_item: continue
